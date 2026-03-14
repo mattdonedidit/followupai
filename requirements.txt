@@ -1,4 +1,5 @@
-anthropic 
-streamlit 
-pandas 
+streamlit
+anthropic
+pandas
 openpyxl
+supabase

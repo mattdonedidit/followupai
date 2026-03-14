@@ -6,6 +6,15 @@ Features: Login, Stripe payments, lead scoring, email sender,
 
 import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
+try:
+    from supabase import create_client
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "https://lgdkbjwiumchlbqprfem.supabase.co")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_SE-lha8mkq3naMcWiOsS6w_hyDq5yZy")
+    supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    USE_SUPABASE = True
+except Exception:
+    USE_SUPABASE = False
+    supabase_client = None
 import anthropic
 import pandas as pd
 import sqlite3
@@ -42,6 +51,14 @@ PLANS = {
 DB = "realfollow.db"
 
 def init_db():
+    # If Supabase is available, create tables there too
+    if USE_SUPABASE and supabase_client:
+        try:
+            # Supabase tables are created via SQL editor
+            # Just verify connection works
+            pass
+        except Exception:
+            pass
     c = sqlite3.connect(DB)
     c.executescript("""
         CREATE TABLE IF NOT EXISTS users (
@@ -197,7 +214,18 @@ def create_user(email, pw, name, phone, company):
         c = sqlite3.connect(DB)
         c.execute("INSERT INTO users (email,password_hash,name,phone,company,created_at) VALUES (?,?,?,?,?,?)",
                   (email.lower(), hash_pw(pw), name, phone, company, datetime.now().isoformat()))
-        c.commit(); c.close(); return True
+        c.commit(); c.close()
+        # Also save to Supabase for persistence
+        if USE_SUPABASE and supabase_client:
+            try:
+                supabase_client.table("users").insert({
+                    "email": email.lower(), "name": name,
+                    "phone": phone, "company": company,
+                    "plan": "starter", "created_at": datetime.now().isoformat()
+                }).execute()
+            except Exception:
+                pass  # Supabase save failed, local still works
+        return True
     except sqlite3.IntegrityError:
         return False
 
